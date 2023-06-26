@@ -1,13 +1,16 @@
 
 QEMU	:= qemu-system-x86_64
-LD		:= i686-elf-ld
-CC		:= i686-elf-gcc
+LD		:= x86_64-elf-ld
+CC		:= x86_64-elf-gcc
+OBJCOPY := x86_64-elf-objcopy
 
 BUILD_DIR := build
+RUST_DIR  := kernel
+RUST_FILES := $(wildcard $(RUST_DIR)/**/*.rs $(RUST_DIR)/*.rs)
+
+CARGO_FLAGS := --release --target-dir=$(abspath $(BUILD_DIR))
 
 BOOT_LOADER_SOURCES := $(wildcard boot/*.asm)
-KERNEL_SOURCES  	:= $(shell ls -R kernel | grep -E "\.(c)")
-KERNEL_OBJECTS := $(addprefix $(BUILD_DIR)/, $(KERNEL_SOURCES:.c=.o))
 
 .PHONY: run clean
 
@@ -20,12 +23,13 @@ $(BUILD_DIR)/disk.img: $(BUILD_DIR)/boot_sect.bin $(BUILD_DIR)/kernel.bin
 	@dd if=$(BUILD_DIR)/output of=$@ conv=notrunc
 
 # Link kernel objects into a binary kernel file
-$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(KERNEL_OBJECTS) 
+$(BUILD_DIR)/kernel.bin: $(BUILD_DIR)/kernel_entry.o $(BUILD_DIR)/kernel.a
 	$(LD) -o $@ -Ttext 0x1000 $^ --oformat binary
 
-# Compile C source files into object files
-$(BUILD_DIR)/%.o: kernel/%.c
-	$(CC) -ffreestanding -c $< -o $@
+# Compile Rust Kernel
+$(BUILD_DIR)/kernel.a: $(RUST_FILES)
+	cd kernel && cargo build $(CARGO_FLAGS)
+	mv $(BUILD_DIR)/x86_64-unknown-linux-gnu/release/libkernel.a $(BUILD_DIR)/kernel.a
 
 # Assembly boot sector bode
 $(BUILD_DIR)/boot_sect.bin: $(BOOT_LOADER_SOURCES) 
@@ -35,7 +39,7 @@ $(BUILD_DIR)/boot_sect.bin: $(BOOT_LOADER_SOURCES)
 # Assembly kernel entry code
 $(BUILD_DIR)/kernel_entry.o: kernel/kernel_entry.asm
 	mkdir -p $(BUILD_DIR)
-	nasm $< -f elf -o $@
+	nasm $< -f elf64 -o $@
 
 # Run the emulator with the disk image
 run: $(BUILD_DIR)/disk.img
