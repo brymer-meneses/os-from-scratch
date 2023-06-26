@@ -5,7 +5,7 @@ edition = "2021"
 
 [lib]
 name = "kernel"
-path = "src/main.rs"
+path = "src/kernel.rs"
 crate-type = ["staticlib"]
 
 [profile.dev]
@@ -15,4 +15,5 @@ panic = "abort"
 panic = "abort"
 
 [dependencies]
+volatile = "0.2.6"
 
